@@ -65,7 +65,7 @@ uniDict = {
 board = chess.Board()
 
 # Set up Stockfish engine
-engine_path = "C:/Users/utkar/Downloads/stockfish-windows-x86-64/stockfish/stockfish-windows-x86-64.exe"  # Update this with the correct path
+engine_path = "Update this with the correct path"  
 engine = chess.engine.SimpleEngine.popen_uci(engine_path)
 
 # Load the conversational model from Hugging Face (DialoGPT)
