@@ -65,7 +65,7 @@ uniDict = {
 board = chess.Board()
 
 # Set up Stockfish engine
-engine_path = "Update this with the correct path"  
+engine_path = ""  # Update this with the correct path
 engine = chess.engine.SimpleEngine.popen_uci(engine_path)
 
 # Load the conversational model from Hugging Face (DialoGPT)
@@ -90,11 +90,28 @@ def get_user_move():
 
 # Function to reflect the move on the gameboard
 def makeMove(move):
-    start_square = (move.from_square % 8, move.from_square // 8)  # Convert square to (x, y)
-    end_square = (move.to_square % 8, move.to_square // 8)  # Convert square to (x, y)
+    # Get the source and destination squares in chess notation
+    start_square = chess.square_file(move.from_square), chess.square_rank(move.from_square)
+    end_square = chess.square_file(move.to_square), chess.square_rank(move.to_square)
+
+    # Ensure the start square exists before making the move
+    if start_square not in game.gameboard:
+        print(f"Error: No piece at start square {start_square}.")
+        return
     
-    # Update the gameboard
-    game.gameboard[end_square] = game.gameboard.pop(start_square)
+    # Special handling for castling
+    if board.is_castling(move):
+        if board.is_kingside_castling(move):
+            # Kingside castling
+            game.gameboard[(6, start_square[1])] = game.gameboard.pop(start_square)  # King
+            game.gameboard[(5, start_square[1])] = game.gameboard.pop((7, start_square[1]))  # Rook
+        elif board.is_queenside_castling(move):
+            # Queenside castling
+            game.gameboard[(2, start_square[1])] = game.gameboard.pop(start_square)  # King
+            game.gameboard[(3, start_square[1])] = game.gameboard.pop((0, start_square[1]))  # Rook
+    else:
+        # Ensure the end square is valid before moving
+        game.gameboard[end_square] = game.gameboard.pop(start_square)
 
 # Greet the user and ask for their color
 user_color = ask_user_for_color()
@@ -106,41 +123,44 @@ else:
 # Create an instance of the Game
 game = Game()
 
-# Continue to interact and suggest moves based on user inputs
-while not board.is_game_over():
-    # CAi suggests the next move for the current turn
-    if (user_color == 'white' and board.turn == chess.WHITE) or (user_color == 'black' and board.turn == chess.BLACK):
-        # CAi suggests the best move based on current board state
-        result = engine.play(board, chess.engine.Limit(time=0.1))
-        print(f"CAi suggests: {board.san(result.move)}")
-        board.push(result.move)
+try:
+    # Continue to interact and suggest moves based on user inputs
+    while not board.is_game_over():
+        # CAi suggests the next move for the current turn
+        if (user_color == 'white' and board.turn == chess.WHITE) or (user_color == 'black' and board.turn == chess.BLACK):
+            # CAi suggests the best move based on current board state
+            result = engine.play(board, chess.engine.Limit(time=0.1))
+            print(f"CAi suggests: {board.san(result.move)}")
+            board.push(result.move)
 
-        # Reflect the CAi's move on the gameboard
-        makeMove(result.move)
+            # Reflect the CAi's move on the gameboard
+            makeMove(result.move)
 
-        # Print the updated chessboard after CAi's move
+            # Print the updated chessboard after CAi's move
+            game.printBoard()
+
+        # Check if the game is over after CAi's move
+        if board.is_game_over():
+            break
+
+        # Get the opponent's move from the user in SAN format
+        user_move = get_user_move()
+
+        try:
+            # Use push_san to handle SAN format (e.g., Be7, Nh3)
+            move = board.push_san(user_move)  # This will raise ValueError if the move is invalid
+
+            # Reflect the user's move on the gameboard
+            makeMove(move)
+        except ValueError:
+            print("Invalid move. Please try again.")
+            continue  # Ask for the user's move again without proceeding further
+
+        # Print the updated chessboard after the user's move
         game.printBoard()
 
-    # Check if the game is over after CAi's move
-    if board.is_game_over():
-        break
+    # End the game
+    print("Game over!")
 
-    # Get the opponent's move from the user in SAN format
-    user_move = get_user_move()
-
-    try:
-        # Use push_san to handle SAN format (e.g., Be7, Nh3)
-        move = board.push_san(user_move)  # This will raise ValueError if the move is invalid
-
-        # Reflect the user's move on the gameboard
-        makeMove(move)
-    except ValueError:
-        print("Invalid move. Please try again.")
-        continue  # Ask for the user's move again without proceeding further
-
-    # Print the updated chessboard after the user's move
-    game.printBoard()
-
-# End the game
-print("Game over!")
-engine.quit()
+finally:
+    engine.quit()  # Ensure engine shuts down properly
